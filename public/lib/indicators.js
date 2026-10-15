@@ -1617,7 +1617,7 @@ export const INDICATORS = [
         default: "Off",
       },
     ],
-    outputs: [line("value", "DPO", "#43a047")],
+    outputs: [line("value", "DPO", "#43a047", { futureWhen: (p) => p.centered === "On" })], // centered redraws: not usable in a strategy
     levels: [0],
     calc: (bars, p) => {
       const c = source(bars, "close"),
@@ -1969,7 +1969,7 @@ export const INDICATORS = [
     outputs: [
       line("conversion", "Conversion", "#2962ff"),
       line("base", "Base", "#b71c1c"),
-      line("lagging", "Lagging span", "#43a047"),
+      line("lagging", "Lagging span", "#43a047", { future: true }), // the close displacement bars ahead: not usable in a strategy
       line("spanA", "Leading span A", "#a5d6a7"),
       line("spanB", "Leading span B", "#ef9a9a"),
     ],
@@ -2117,7 +2117,7 @@ export const INDICATORS = [
       { key: "deviation", label: "Deviation (%)", type: "float", default: 5 },
       { key: "depth", label: "Depth", type: "int", default: 10 },
     ],
-    outputs: [line("value", "Zig Zag", "#2962ff", { lineWidth: 2 })],
+    outputs: [line("value", "Zig Zag", "#2962ff", { lineWidth: 2, future: true })], // redraws: not usable in a strategy
     calc: (bars, p) => ({ value: zigzagOf(bars, p.deviation, p.depth) }),
   },
   {

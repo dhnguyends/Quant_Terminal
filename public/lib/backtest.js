@@ -16,9 +16,11 @@
 //
 // Operands: a number, a price field (open/high/low/close/volume/hl2/hlc3/ohlc4), an indicator key
 // ('fast'), or an indicator output ('macd.signal'). Signals are read on a bar's close and filled at
-// the NEXT bar's open, so the test never trades on information it could not have had.
+// the NEXT bar's open, so the test never trades on information it could not have had. Outputs that
+// are drawn with later bars (Ichimoku's lagging span, Zig Zag, centered DPO) redraw history and are
+// refused as operands for the same reason.
 
-import { compute, source, BY_ID } from "./indicators.js";
+import { compute, source, BY_ID, defaults } from "./indicators.js";
 
 const PRICE_FIELDS = [
   "open",
@@ -88,6 +90,12 @@ export function resolveSeries(bars, indicators = {}, cache = {}) {
     if (!Array.isArray(s))
       throw new Error(
         `Indicator "${key}" (${spec.id}) has no output "${outKey}"`,
+      );
+    const outSpec = BY_ID[spec.id].outputs.find((o) => o.key === outKey);
+    const effParams = { ...defaults(spec.id), ...(spec.params || {}) };
+    if (outSpec?.future || outSpec?.futureWhen?.(effParams))
+      throw new Error(
+        `"${operand}" is drawn with later bars, so it cannot be used in a strategy or alert. Pick another output.`,
       );
     return (i) => s[i];
   };
@@ -273,10 +281,22 @@ export function backtest(bars, strategy, { subBars = null } = {}) {
     const hi = exitQuote(b.high),
       lo = exitQuote(b.low),
       op = exitQuote(b.open);
-    if (s.trailingStopPct) trail(pos.side === 1 ? hi : lo);
-    if (beyond(pos.side === 1 ? lo : hi, pos.stop, false))
+    if (beyond(pos.side === 1 ? lo : hi, pos.stop, false)) {
+      // A stop that already existed at the open can gap through it: fill at the open.
       closePos(i, pos.side === 1 ? Math.min(pos.stop, op) : Math.max(pos.stop, op), "Stop");
-    else if (beyond(pos.side === 1 ? hi : lo, pos.target, true))
+      return;
+    }
+    if (s.trailingStopPct) {
+      trail(pos.side === 1 ? hi : lo);
+      // The ratcheted stop was created inside this bar, past its open in the trade's favour, so the
+      // open is not a price it can fill at: price crossed the level itself on the way back from
+      // the extreme, and that level is the fill.
+      if (beyond(pos.side === 1 ? lo : hi, pos.stop, false)) {
+        closePos(i, pos.stop, "Stop");
+        return;
+      }
+    }
+    if (beyond(pos.side === 1 ? hi : lo, pos.target, true))
       closePos(i, pos.side === 1 ? Math.max(pos.target, op) : Math.min(pos.target, op), "Target");
   };
   // 'ohlc' and 'magnifier': walk each segment's open, near extreme, far extreme, close in order.

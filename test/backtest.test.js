@@ -150,6 +150,32 @@ test('a bar that opens past the stop fills at the open on every fill setting', (
   }
 });
 
+// A trailing stop ratcheted inside a bar did not exist at that bar's open, so the open is not a price
+// it can fill at: price crossed the ratcheted level itself on the way back from the extreme.
+test('a trailing stop ratcheted inside a bar fills at its level, not the open', () => {
+  const b = [day(0, 100, 100, 100, 100), day(1, 100, 112, 99, 105), day(2, 105, 106, 104, 105)];
+  const s = { ...noCosts, trailingStopPct: 10, entryLong: [{ left: 'close', op: '>', right: 0 }] };
+  const t = backtest(b, s).trades[0];
+  assert.equal(t.exitReason, 'Stop');
+  assert.ok(Math.abs(t.exitPrice - 100.8) < 1e-9, 'long exit = the high 112 x (1 - 10%) = 100.8, not the open 100');
+  assert.ok(t.pnl > 0, 'the rally is kept, not given back');
+
+  const drop = [day(0, 100, 100, 100, 100), day(1, 100, 101, 88, 95), day(2, 95, 96, 94, 95)];
+  const short = backtest(drop, { ...s, entryLong: [], entryShort: [{ left: 'close', op: '>', right: 0 }] }).trades[0];
+  assert.equal(short.exitReason, 'Stop');
+  assert.ok(Math.abs(short.exitPrice - 96.8) < 1e-9, 'short exit = the low 88 x (1 + 10%) = 96.8, not the open 100');
+});
+
+test('outputs drawn with later bars are refused as operands', () => {
+  const rule = (left, indicators) => conditionFn(bars, indicators)({ left, op: '>', right: 0 });
+  assert.throws(() => rule('lag.lagging', { lag: { id: 'ichimoku' } }), /later bars/);
+  assert.throws(() => rule('zz.value', { zz: { id: 'zigzag' } }), /later bars/);
+  assert.throws(() => rule('d.value', { d: { id: 'dpo', params: { centered: 'On' } } }), /later bars/);
+  // the same indicators' backward-looking outputs still work
+  assert.doesNotThrow(() => rule('lag.conversion', { lag: { id: 'ichimoku' } }));
+  assert.doesNotThrow(() => rule('d.value', { d: { id: 'dpo' } }), 'centered defaults to Off');
+});
+
 test('the magnifier picks the finest timeframe that covers the test in 20,000 bars', () => {
   assert.equal(magnifierTf(14400, 1000 * 14400).tf, '15m');
   assert.equal(magnifierTf(86400, 1000 * 86400).tf, '4h');
