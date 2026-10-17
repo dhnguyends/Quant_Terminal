@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.2.1 — 2026-10-17
+
+### Fixed: a short trade's exit fee was charged on the wrong amount
+
+Closing a short means buying back what was sold, so the exit fee belongs on
+that buy-back amount — for longs it was already right (charged on the sale).
+The tester instead charged it on the short's collateral-plus-profit:
+`fee × qty × (2×entry − fill)` instead of `fee × qty × fill`.
+
+With fees at 0.1%: shorting at 100 and covering at 50 paid 0.15 per unit
+instead of 0.05, so the profit showed 49.75 instead of 49.85 per unit. A
+losing short (covering at 150) paid 0.05 instead of 0.15, so the loss looked
+0.10 per unit smaller. Winning shorts paid too much, losing shorts too
+little; exact only at break-even. Longs were always correct and are
+unchanged by this fix. (`public/lib/backtest.js`, `closePos`)
+
+### Tests added
+
+- A winning short and a losing short each pay exactly
+  `fee × (entry notional + exit notional)` round trip, pinned to the cent.
+
 ## 1.2.0 — 2026-10-16
 
 Two correctness fixes from a full math review of the strategy tester and the indicator library.

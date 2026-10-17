@@ -1,6 +1,6 @@
 {
   "name": "quant-terminal",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A free, local trading terminal: charts, 50+ indicators, drawings, alerts, screener, heatmap, strategy tester, bar replay and paper trading. Your data, your machine.",
   "type": "module",
   "private": true,

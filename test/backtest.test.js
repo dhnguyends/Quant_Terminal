@@ -166,6 +166,25 @@ test('a trailing stop ratcheted inside a bar fills at its level, not the open', 
   assert.ok(Math.abs(short.exitPrice - 96.8) < 1e-9, 'short exit = the low 88 x (1 + 10%) = 96.8, not the open 100');
 });
 
+// Closing a short buys back qty at the fill, so the exit fee is on that; longs already paid theirs
+// on the sale. Round trip, each side pays fee x (entry notional + exit notional).
+test('a short pays its exit fee on the buy-back, not on collateral plus profit', () => {
+  const qty = 10000 / (100 * 1.001); // sized so the entry outlay, fee included, is the whole account
+  const s = { ...noCosts, feePct: 0.1, entryShort: [{ left: 'close', op: '>', right: 0 }] };
+  const win = backtest(
+    [day(0, 100, 100, 100, 100), day(1, 100, 100, 100, 100), day(2, 100, 100, 100, 50), day(3, 50, 50, 50, 50)],
+    { ...s, exitShort: [{ left: 'close', op: '<', right: 60 }] },
+  ).trades[0];
+  assert.ok(Math.abs(win.pnl - qty * (50 - 0.1 - 0.05)) < 1e-9, 'cover at 50: gross 50/unit, fees 0.1 + 0.05/unit');
+  assert.ok(Math.abs(win.pnl - qty * 49.75) > 1e-6, 'the old bug charged 0.1% of collateral plus profit');
+
+  const lose = backtest(
+    [day(0, 100, 100, 100, 100), day(1, 100, 100, 100, 100), day(2, 100, 100, 100, 150), day(3, 150, 150, 150, 150)],
+    { ...s, exitShort: [{ left: 'close', op: '>', right: 140 }] },
+  ).trades[0];
+  assert.ok(Math.abs(lose.pnl - qty * (-50 - 0.1 - 0.15)) < 1e-9, 'cover at 150: the loss keeps the full 0.15/unit exit fee');
+});
+
 test('outputs drawn with later bars are refused as operands', () => {
   const rule = (left, indicators) => conditionFn(bars, indicators)({ left, op: '>', right: 0 });
   assert.throws(() => rule('lag.lagging', { lag: { id: 'ichimoku' } }), /later bars/);

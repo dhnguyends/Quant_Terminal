@@ -248,9 +248,12 @@ export function backtest(bars, strategy, { subBars = null } = {}) {
 
   const closePos = (i, price, reason) => {
     const fill = price * (1 - pos.side * slip);
+    // The exit fee is on the closing transaction: selling qty at the fill for a long, buying back
+    // qty at the fill for a short — never on a short's collateral-plus-profit.
+    const exitFee = fee * pos.qty * fill;
     const proceeds =
       pos.side === 1 ? pos.qty * fill : pos.qty * (2 * pos.entry - fill);
-    const net = proceeds * (1 - fee);
+    const net = proceeds - exitFee;
     const cost = pos.qty * pos.entry * (1 + fee);
     cash += net;
     trades.push({
